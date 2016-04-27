@@ -11,25 +11,25 @@
 #define BRAKE_DWN 5
 #define BRAKE_UP 6
 #define BRAKE_PWR 7
-#define REV_ON 0
-#define REV_OFF 0
-#define REV_PWR 0
+#define REV_ON 23
+#define REV_OFF 24
+#define REV_PWR 25
 
 //UltraSonic pin map
-/*#define FC_TRIGGER 0
-#define FC_ECHO 0
-#define FL_TRIGGER 0
-#define FL_ECHO 0
-#define FR_TRIGGER 0
-#define FR_ECHO 0
-#define LF_TRIGGER 0
-#define LF_ECHO 0
-#define LB_TRIGGER 0
-#define LB_ECHO 0
-#define RF_TRIGGER 0
-#define RF_ECHO 0
-#define RB_TRIGGER 0
-#define RB_ECHO 0*/
+/*#define FC_TRIGGER 26
+#define FC_ECHO 27
+#define FL_TRIGGER 28
+#define FL_ECHO 29
+#define FR_TRIGGER 40
+#define FR_ECHO 39
+#define LF_TRIGGER 38
+#define LF_ECHO 37
+#define LB_TRIGGER 36
+#define LB_ECHO 35
+#define RF_TRIGGER 34
+#define RF_ECHO 33
+#define RB_TRIGGER 32
+#define RB_ECHO 31*/
 
 int power, turn, turnCount, newWaypoint, enable, rev, waypointCount;
 double latitude, goalLat, longitude, goalLong, heading, optimalHeading;
@@ -37,7 +37,7 @@ double waypoints[5][2];
 boolean autoNav, fcCol, flCol, frCol, lfCol, lbCol, rfCol, rbCol, goLeft, goRight, goForward, collision;
 boolean visited[5];
 
-char *inData = "{\"gpsNav\":1,\"power\":0,\"turn\":0,\"enable\":1,\"reverse\":0,\"latitude\":32.7,\"longitude\":-96.8,\"heading\":0.0,\"waypoints\":[[-34.0,89.9],[99.9,89.0]]}";
+String inData = "";
 
 // the network name you want to created
 char ssid[] = "asd1234";
@@ -68,8 +68,9 @@ void setup()
 
 void loop()
 {
-  WiFiClient client = server.available();   // listen for incoming clients
-  // when the client sends the first byte, say hello:
+  WiFiClient client = server.available();   
+  // listen for incoming clients 
+  //when the client sends the first byte, say hello:
   if (client) 
   {
     if (!alreadyConnected) 
@@ -84,17 +85,13 @@ void loop()
     if (client.available() > 0)
     {
       // read the bytes incoming from the client:
-      //char thisChar = client.read();      
+      char thisChar = client.read();      
       // Process message when new line or carriage return character is recieved
-      //inData += thisChar;
-      //Serial.print(thisChar);
-      //if(thisChar == '}')
-      //{
+      inData += thisChar;
+      Serial.print(thisChar);
+      if(thisChar == '}')
+      {
         jsonParse();
-        if(newWaypoint == 1)
-        {
-          autoNav = true;
-        }
         if(!autoNav)
         {
           if(enable == 1)
@@ -108,7 +105,7 @@ void loop()
           autoNavigate();
         }
         inData = "";
-      //}
+      }
     }
   }  
 }
@@ -156,10 +153,15 @@ void phoneControl()
 
 void jsonParse()
 {
-  //char *jsonString = inData.toCharArray();
-  aJsonObject *jsonObject = aJson.parse(inData);
+  char jsonarray[200];
+  inData.toCharArray(jsonarray, 200);
+  aJsonObject *jsonObject = aJson.parse(jsonarray);
   aJsonObject *jgpsNav = aJson.getObjectItem(jsonObject, "gpsNav");
   newWaypoint = (jgpsNav->valueint);
+  if(newWaypoint == 1)
+  {
+    autoNav = true;
+  }
   if(!autoNav)
   {
     aJsonObject *jpower = aJson.getObjectItem(jsonObject, "power");
@@ -191,6 +193,11 @@ void jsonParse()
     Serial.println(longitude);
     aJsonObject *jheading = aJson.getObjectItem(jsonObject, "heading");
     heading = (jheading->valuefloat);
+    heading = heading + 90.0;
+    if(heading >= 360.0)
+    {
+      heading = heading - 360.0;
+    }
     Serial.print("Heading: ");
     Serial.println(heading);
     if(newWaypoint == 1)
@@ -265,7 +272,7 @@ void moveToGoal()
   }
 }
 
-/*void moveAvoidingCollision()
+void moveAvoidingCollision()
 {
   if(fcCol)
   {
@@ -332,7 +339,7 @@ void moveToGoal()
   {
     moveToGoal();
   }
-}*/
+}
 
 void idle()
 {
@@ -460,6 +467,14 @@ void turnR()
 
 /*void detectCollisions()
 {
+  fcCol = false;
+  flCol = false;
+  frCol = false;
+  lfCol = false;
+  rfCol = false;
+  lbCol = false;
+  rbCol = false;
+  
   long distances[7]; 
   distances[0] = UltraSonicTest(FC_TRIGGER, FC_ECHO);
   distances[1] = UltraSonicTest(LF_TRIGGER, LF_ECHO);
@@ -521,7 +536,7 @@ void autoNavigate()
 {
   for(int i = 0; i < waypointCount; i++)
   {
-    if(visited[i])
+    if(!visited[i])
     {
       goalLat = waypoints[i][0];
       goalLong = waypoints[i][1];
@@ -557,8 +572,8 @@ void autoNavigate()
   }
   
   getOptimalHeading();
-  //detectCollisions();
-  /*if(collision)
+  /*detectCollisions();
+  if(collision)
   {
     moveAvoidingCollision();
   }*/
