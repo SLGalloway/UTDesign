@@ -31,7 +31,7 @@
 #define RB_TRIGGER 32
 #define RB_ECHO 31*/
 
-int power, turn, turnCount, newWaypoint, enable, rev, waypointCount;
+int power, turn, turnCount, newWaypoint, enable, rev, waypointCount, loopCount;
 double latitude, goalLat, longitude, goalLong, heading, optimalHeading;
 double waypoints[5][2];
 boolean autoNav, fcCol, flCol, frCol, lfCol, lbCol, rfCol, rbCol, goLeft, goRight, goForward, collision;
@@ -54,6 +54,8 @@ void setup()
   {
     visited[i] = false;
   }
+  turnCount = 0;
+  loopCount = 0;
   waypointCount = 0;
   
   Serial.begin(115200);
@@ -68,6 +70,7 @@ void setup()
 
 void loop()
 {
+  
   WiFiClient client = server.available();   
   // listen for incoming clients 
   //when the client sends the first byte, say hello:
@@ -82,13 +85,13 @@ void loop()
       alreadyConnected = true;
     }
     
-    if (client.available() > 0)
+    while (client.available() > 0)
     {
       // read the bytes incoming from the client:
       char thisChar = client.read();      
       // Process message when new line or carriage return character is recieved
       inData += thisChar;
-      Serial.print(thisChar);
+      //Serial.print(thisChar);
       if(thisChar == '}')
       {
         jsonParse();
@@ -166,31 +169,31 @@ void jsonParse()
   {
     aJsonObject *jpower = aJson.getObjectItem(jsonObject, "power");
     power = (jpower->valueint);
-    Serial.print("Power: ");
-    Serial.println(power);
+    //Serial.print("Power: ");
+    //Serial.println(power);
     aJsonObject *jturn = aJson.getObjectItem(jsonObject, "turn");
     turn = (jturn->valueint);
-    Serial.print("Turn: ");
-    Serial.println(turn);
+    //Serial.print("Turn: ");
+    //Serial.println(turn);
     aJsonObject *jenable = aJson.getObjectItem(jsonObject, "enable");
     enable = (jenable->valueint);
-    Serial.print("Enable: ");
-    Serial.println(enable);
+    //Serial.print("Enable: ");
+    //Serial.println(enable);
     aJsonObject *jreverse = aJson.getObjectItem(jsonObject, "reverse");
     rev = (jreverse->valueint);
-    Serial.print("Reverse: ");
-    Serial.println(rev);
+    //Serial.print("Reverse: ");
+    //Serial.println(rev);
   }
   else if(autoNav)
   { 
     aJsonObject *jlatitude = aJson.getObjectItem(jsonObject, "latitude");
     latitude = (jlatitude->valuefloat);
-    Serial.print("Latitude: ");
-    Serial.println(latitude);
+    //Serial.print("Latitude: ");
+    //Serial.println(latitude);
     aJsonObject *jlongitude = aJson.getObjectItem(jsonObject, "longitude");
     longitude = (jlongitude->valuefloat);
-    Serial.print("Longitude: ");
-    Serial.println(longitude);
+    //Serial.print("Longitude: ");
+    //Serial.println(longitude);
     aJsonObject *jheading = aJson.getObjectItem(jsonObject, "heading");
     heading = (jheading->valuefloat);
     heading = heading + 90.0;
@@ -198,8 +201,8 @@ void jsonParse()
     {
       heading = heading - 360.0;
     }
-    Serial.print("Heading: ");
-    Serial.println(heading);
+    //Serial.print("Heading: ");
+    //Serial.println(heading);
     if(newWaypoint == 1)
     {
       aJsonObject *jwaypoints = aJson.getObjectItem(jsonObject, "waypoints");
@@ -209,16 +212,16 @@ void jsonParse()
         aJsonObject *coordSet = aJson.getArrayItem(jwaypoints, i);
         aJsonObject *jlat = aJson.getArrayItem(coordSet, 0);
         waypoints[i][0] = (jlat->valuefloat);
-        Serial.print("Waypoints[");
-        Serial.print(i);
-        Serial.print("[0]: ");
-        Serial.println(waypoints[i][0]);
+        //Serial.print("Waypoints[");
+        //Serial.print(i);
+        //Serial.print("[0]: ");
+        //Serial.println(waypoints[i][0]);
         aJsonObject *jlon = aJson.getArrayItem(coordSet, 1);
         waypoints[i][1] = (jlon->valuefloat);
-        Serial.print("Waypoints[");
-        Serial.print(i);
-        Serial.print("][1]: ");
-        Serial.println(waypoints[i][1]);
+        //Serial.print("Waypoints[");
+        //Serial.print(i);
+        //Serial.print("][1]: ");
+        //Serial.println(waypoints[i][1]);
         waypointCount++;
       }
     }
@@ -272,7 +275,7 @@ void moveToGoal()
   }
 }
 
-void moveAvoidingCollision()
+/*void moveAvoidingCollision()
 {
   if(fcCol)
   {
@@ -339,7 +342,7 @@ void moveAvoidingCollision()
   {
     moveToGoal();
   }
-}
+}*/
 
 void idle()
 {
@@ -373,6 +376,7 @@ void brake()
 
 void forward()
 {
+  Serial.println("Going forward.");
   if(turnCount < 0)
   {
     turnR();
@@ -395,8 +399,6 @@ void forward()
     digitalWrite(REV_OFF, HIGH);
     digitalWrite(REV_PWR, HIGH);
   }
-  
-  Serial.println("Forward");
 }
 
 void reverse()
@@ -417,15 +419,19 @@ void reverse()
 
 void turnL()
 {
+  Serial.println("Turn count: ");
+  Serial.println(turnCount);
   analogWrite(POWER, 100);
-  if(turnCount > -6)
+  if(turnCount > -11)
   {
+    Serial.println("Turning left.");
     digitalWrite(TURN_L, HIGH);
     digitalWrite(TURN_R, LOW);
     digitalWrite(TURN_PWR, HIGH);
     turnCount--;
   }
   else{
+    Serial.println("Turn count too low, staying forward.");
     digitalWrite(TURN_L, LOW);
     digitalWrite(TURN_R, LOW);
     digitalWrite(TURN_PWR, LOW);
@@ -436,21 +442,23 @@ void turnL()
   digitalWrite(REV_ON, LOW);
   digitalWrite(REV_OFF, HIGH);
   digitalWrite(REV_PWR, HIGH);
-  
-  Serial.println("Left turn");
 }
 
 void turnR()
 {
+  Serial.println("Turn count: ");
+  Serial.println(turnCount);
   analogWrite(POWER, 100);
-  if(turnCount < 6)
+  if(turnCount < 11)
   {
+    Serial.println("Turning right.");
     digitalWrite(TURN_L, LOW);
     digitalWrite(TURN_R, HIGH);
     digitalWrite(TURN_PWR, HIGH);
     turnCount++;
   }
   else{
+    Serial.println("Turn count too high, staying forward.");
     digitalWrite(TURN_L, LOW);
     digitalWrite(TURN_R, LOW);
     digitalWrite(TURN_PWR, LOW);
@@ -461,8 +469,6 @@ void turnR()
   digitalWrite(REV_ON, LOW);
   digitalWrite(REV_OFF, HIGH);
   digitalWrite(REV_PWR, HIGH);
-  
-  Serial.println("Turn right");
 }
 
 /*void detectCollisions()
@@ -517,7 +523,6 @@ void turnR()
     collision = true;
   }
 }
-
 long UltraSonicTest(int trigger, int echo)
 {
   long dur, dis;
@@ -534,6 +539,7 @@ long UltraSonicTest(int trigger, int echo)
 
 void autoNavigate()
 {
+  Serial.println("In autoNavigate.");
   for(int i = 0; i < waypointCount; i++)
   {
     if(!visited[i])
@@ -616,8 +622,8 @@ void initPins()
   digitalWrite(BRAKE_UP, LOW);
   digitalWrite(BRAKE_PWR, LOW);
   digitalWrite(REV_ON, LOW);
-  digitalWrite(REV_OFF, HIGH);
-  digitalWrite(REV_PWR, HIGH);
+  digitalWrite(REV_OFF, LOW);
+  digitalWrite(REV_PWR, LOW);
   
   /*digitalWrite(FC_TRIGGER, LOW);
   digitalWrite(FL_TRIGGER, LOW);
