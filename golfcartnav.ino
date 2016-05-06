@@ -4,16 +4,16 @@
 #include<aJSON.h>
 
 //motor pin map
-#define POWER 10
-#define TURN_R 2
-#define TURN_L 3
-#define TURN_PWR 4
-#define BRAKE_DWN 5
-#define BRAKE_UP 6
-#define BRAKE_PWR 7
-#define REV_ON 23
-#define REV_OFF 24
-#define REV_PWR 25
+#define POWER 10          //analog pin to cart's motor controller for movement
+#define TURN_R 2          //digital pin to steering actuator, high when turning right
+#define TURN_L 3          //digital pin to steering actuator, high when turning left
+#define TURN_PWR 4        //digital pin to steering actuator, high when turning
+#define BRAKE_DWN 5       //digital pin to braking actuator, high when pressing brake
+#define BRAKE_UP 6        //digital pin to braking actuator, high when releasing brake
+#define BRAKE_PWR 7       //digital pin to braking actuator, high when pressing or releasing brake
+#define REV_ON 23         //digital pin to reverse switch actuator, high when engaging reverse
+#define REV_OFF 24        //digital pin to reverse switch actuator, high when disengaging reverse
+#define REV_PWR 25        //digital pin to reverse switch actuator, high when engaging or disengaging reverse
 
 //UltraSonic pin map
 /*#define FC_TRIGGER 26
@@ -44,7 +44,7 @@ char ssid[] = "asd1234";
 // your network password
 char password[] = "12345678";
 WiFiServer server(80);
-boolean alreadyConnected = false; // whether or not the client was connected previously
+boolean alreadyConnected = false;
 
 void setup()
 {
@@ -59,12 +59,12 @@ void setup()
   waypointCount = 0;
   
   Serial.begin(115200);
-  Serial.print("Starting create network...");
+  Serial.print("Creating wireless network: ");
   WiFi.beginNetwork(ssid, password);
-  Serial.println("network created done.");
+  Serial.println("done.");
   printWifiStatus();
   Serial.println("Starting webserver on port 80");
-  server.begin();                           // start the web server on port 80
+  server.begin();
   Serial.println("Webserver started!");
 }
 
@@ -113,6 +113,7 @@ void loop()
   }  
 }
 
+//sends commands to cart based on manual controls if that mode is engaged
 void phoneControl()
 {
   if(rev == 0)
@@ -154,9 +155,9 @@ void phoneControl()
   }   
 }
 
+//parses input from mobile app as json object
 void jsonParse()
 {
-  Serial.println("Parsing.");
   char jsonarray[500];
   inData.toCharArray(jsonarray, 500);
   aJsonObject *jsonObject = aJson.parse(jsonarray);
@@ -166,6 +167,10 @@ void jsonParse()
   {
     autoNav = true;
   }
+  aJsonObject *jenable = aJson.getObjectItem(jsonObject, "enable");
+  enable = (jenable->valueint);
+  Serial.print("\tEnable: ");
+  Serial.print(enable);
   if(!autoNav)
   {
     aJsonObject *jpower = aJson.getObjectItem(jsonObject, "power");
@@ -176,10 +181,6 @@ void jsonParse()
     turn = (jturn->valueint);
     Serial.print("\tTurn: ");
     Serial.print(turn);
-    aJsonObject *jenable = aJson.getObjectItem(jsonObject, "enable");
-    enable = (jenable->valueint);
-    Serial.print("\tEnable: ");
-    Serial.print(enable);
     aJsonObject *jreverse = aJson.getObjectItem(jsonObject, "reverse");
     rev = (jreverse->valueint);
     Serial.print("\tReverse: ");
@@ -236,6 +237,8 @@ void jsonParse()
   }
   aJson.deleteItem(jsonObject);
 }
+
+//calculates optimal heading based on current and goal locations
 void getOptimalHeading()
 {
   float adjacent = goalLong - longitude;
@@ -262,10 +265,6 @@ void getOptimalHeading()
   Serial.println(optimalHeading - heading);
   
   if(((optimalHeading - heading) <= 10.0 && (optimalHeading - heading) >= -10.0) || ((optimalHeading - heading) >= 350.0 && (optimalHeading - heading) < 360.0) || ((optimalHeading - heading) <= -350.0 && (optimalHeading - heading) > -360.0))
-  
-  
-  
-  
   {
     goForward = true;
   }
@@ -281,6 +280,7 @@ void getOptimalHeading()
   }
 }
 
+//auto navigation when no collisions are detected
 void moveToGoal()
 {
   Serial.print("Enable: ");
@@ -307,6 +307,7 @@ void moveToGoal()
   }
 }
 
+//movement that takes collision data into account if some are detected
 /*void moveAvoidingCollision()
 {
   if(fcCol)
@@ -376,6 +377,7 @@ void moveToGoal()
   }
 }*/
 
+//sets all actuators and cart power to neutral
 void idle()
 {
   analogWrite(POWER, 0);
@@ -391,6 +393,8 @@ void idle()
   Serial.println("Idle");
 }
 
+
+//initiates braking
 void brake()
 {
   analogWrite(POWER, 0);
@@ -406,6 +410,7 @@ void brake()
   Serial.println("Braking");
 }
 
+//powers back wheels
 void go()
 {
   Serial.println("Power to back wheels.");
@@ -418,8 +423,10 @@ void go()
   digitalWrite(REV_PWR, HIGH);
 }
 
+//straightens wheels and moves straight forward
 void forward()
 {
+  go();
   Serial.println("Going forward.");
   if(turnCount < 0)
   {
@@ -432,13 +439,13 @@ void forward()
   }
   
   else{
-    go();
     digitalWrite(TURN_R, LOW);
     digitalWrite(TURN_L, LOW);
     digitalWrite(TURN_PWR, LOW);
   }
 }
 
+//called when reverse should be engaged
 void reverse()
 {
   analogWrite(POWER, 100);
@@ -455,6 +462,7 @@ void reverse()
   Serial.println("Reverse");
 }
 
+//called when steering needs to turn left
 void turnL()
 {
   if(turnCount > -3 && autoNav)
@@ -468,6 +476,7 @@ void turnL()
   digitalWrite(TURN_PWR, HIGH);
 }
 
+//called when steering needs to turn right
 void turnR()
 {
   analogWrite(POWER, 100);
@@ -481,6 +490,7 @@ void turnR()
   digitalWrite(TURN_PWR, HIGH);
 }
 
+//test each ultrasonic, store info about ones that detect incoming collisions
 /*void detectCollisions()
 {
   fcCol = false;
@@ -533,6 +543,8 @@ void turnR()
     collision = true;
   }
 }
+
+//test a single ultrasonic to get collision data
 long UltraSonicTest(int trigger, int echo)
 {
   long dur, dis;
@@ -547,6 +559,7 @@ long UltraSonicTest(int trigger, int echo)
   return dis;
 }*/
 
+//find waypoint to navigate to, avoid collisions if necessary, otherwise move to goal
 void autoNavigate()
 {
   Serial.println("In autoNavigate.");
@@ -599,6 +612,7 @@ void autoNavigate()
   moveToGoal();
 }
 
+//initialize all used pins at start of program
 void initPins() 
 {
   pinMode(POWER, OUTPUT);
