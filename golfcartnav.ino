@@ -121,15 +121,15 @@ void phoneControl()
     {
       if(turn == 0)
       {
-        forward();
+        go();
       }
       
-      else if(turn > 0)
+      if(turn > 0)
       {
         turnR();
       }
       
-      else if(turn < 0)
+      if(turn < 0)
       {
         turnL();
       }
@@ -142,11 +142,11 @@ void phoneControl()
   }
   else if(rev == 1)
   {
-    if(power > 0)
+    if(power < 0)
     {
       reverse();
     }
-    else if(power < 0)
+    else if(power > 0)
     {
       brake();
     }
@@ -156,8 +156,9 @@ void phoneControl()
 
 void jsonParse()
 {
-  char jsonarray[200];
-  inData.toCharArray(jsonarray, 200);
+  Serial.println("Parsing.");
+  char jsonarray[500];
+  inData.toCharArray(jsonarray, 500);
   aJsonObject *jsonObject = aJson.parse(jsonarray);
   aJsonObject *jgpsNav = aJson.getObjectItem(jsonObject, "gpsNav");
   newWaypoint = (jgpsNav->valueint);
@@ -169,89 +170,112 @@ void jsonParse()
   {
     aJsonObject *jpower = aJson.getObjectItem(jsonObject, "power");
     power = (jpower->valueint);
-    //Serial.print("Power: ");
-    //Serial.println(power);
+    Serial.print("Power: ");
+    Serial.print(power);
     aJsonObject *jturn = aJson.getObjectItem(jsonObject, "turn");
     turn = (jturn->valueint);
-    //Serial.print("Turn: ");
-    //Serial.println(turn);
+    Serial.print("\tTurn: ");
+    Serial.print(turn);
     aJsonObject *jenable = aJson.getObjectItem(jsonObject, "enable");
     enable = (jenable->valueint);
-    //Serial.print("Enable: ");
-    //Serial.println(enable);
+    Serial.print("\tEnable: ");
+    Serial.print(enable);
     aJsonObject *jreverse = aJson.getObjectItem(jsonObject, "reverse");
     rev = (jreverse->valueint);
-    //Serial.print("Reverse: ");
-    //Serial.println(rev);
+    Serial.print("\tReverse: ");
+    Serial.println(rev);
   }
   else if(autoNav)
   { 
     aJsonObject *jlatitude = aJson.getObjectItem(jsonObject, "latitude");
     latitude = (jlatitude->valuefloat);
-    //Serial.print("Latitude: ");
-    //Serial.println(latitude);
+    Serial.print("Latitude: ");
+    Serial.print(latitude, 6);
     aJsonObject *jlongitude = aJson.getObjectItem(jsonObject, "longitude");
     longitude = (jlongitude->valuefloat);
-    //Serial.print("Longitude: ");
-    //Serial.println(longitude);
+    Serial.print("\tLongitude: ");
+    Serial.print(longitude, 6);
     aJsonObject *jheading = aJson.getObjectItem(jsonObject, "heading");
     heading = (jheading->valuefloat);
-    heading = heading + 90.0;
+    heading = 90 - heading;
     if(heading >= 360.0)
     {
       heading = heading - 360.0;
     }
-    //Serial.print("Heading: ");
-    //Serial.println(heading);
+    if(heading < 0)
+    {
+      heading = heading + 360.0;
+    }
+    Serial.print("\tHeading: ");
+    Serial.println(heading);
     if(newWaypoint == 1)
     {
+      Serial.print("New waypoint. ");
       aJsonObject *jwaypoints = aJson.getObjectItem(jsonObject, "waypoints");
       int tmp = aJson.getArraySize(jwaypoints);
+      Serial.print("Total waypoints: ");
+      Serial.println(tmp);
       for(int i = 0; i < tmp; i++)
       {
         aJsonObject *coordSet = aJson.getArrayItem(jwaypoints, i);
         aJsonObject *jlat = aJson.getArrayItem(coordSet, 0);
         waypoints[i][0] = (jlat->valuefloat);
-        //Serial.print("Waypoints[");
-        //Serial.print(i);
-        //Serial.print("[0]: ");
-        //Serial.println(waypoints[i][0]);
+        Serial.print("\tWaypoints[");
+        Serial.print(i);
+        Serial.print("[0]: ");
+        Serial.print(waypoints[i][0]);
         aJsonObject *jlon = aJson.getArrayItem(coordSet, 1);
         waypoints[i][1] = (jlon->valuefloat);
-        //Serial.print("Waypoints[");
-        //Serial.print(i);
-        //Serial.print("][1]: ");
-        //Serial.println(waypoints[i][1]);
+        Serial.print("\tWaypoints[");
+        Serial.print(i);
+        Serial.print("][1]: ");
+        Serial.println(waypoints[i][1]);
         waypointCount++;
       }
     }
   }
+  aJson.deleteItem(jsonObject);
 }
 void getOptimalHeading()
 {
-  float opposite = goalLong - longitude;
-  float adjacent = goalLat - latitude;
+  float adjacent = goalLong - longitude;
+  float opposite = goalLat - latitude;
   
   optimalHeading = atan2(opposite, adjacent);
   
   optimalHeading = optimalHeading / 3.1415;
   optimalHeading = optimalHeading * 180.0;
   
+  if(optimalHeading < 0.0)
+  {
+   optimalHeading = optimalHeading + 360.0; 
+  }
+  
   goForward = false;
   goLeft = false;
   goRight = false;
   
-  if((optimalHeading - heading) < 3 && (optimalHeading - heading) > -3)
+  Serial.print("Optimal heading: ");
+  Serial.print(optimalHeading);
+  
+  Serial.print("\tDifference: ");
+  Serial.println(optimalHeading - heading);
+  
+  if(((optimalHeading - heading) <= 10.0 && (optimalHeading - heading) >= -10.0) || ((optimalHeading - heading) >= 350.0 && (optimalHeading - heading) < 360.0) || ((optimalHeading - heading) <= -350.0 && (optimalHeading - heading) > -360.0))
+  
+  
+  
+  
   {
     goForward = true;
   }
   
-  else if(((optimalHeading - heading) < 180 && (optimalHeading - heading) > 3) || (optimalHeading - heading) < -180)
+  else if(((optimalHeading - heading) < 180.0 && (optimalHeading - heading) > 10.0) || (optimalHeading - heading) < -180.0)
   {
     goLeft = true;
   }
   
-  else if(((optimalHeading - heading) > -180 && (optimalHeading - heading) < -3) || (optimalHeading - heading) > 180)
+  else if(((optimalHeading - heading) > -180.0 && (optimalHeading - heading) < -10.0) || (optimalHeading - heading) > 180.0)
   {
     goRight = true;
   }
@@ -259,18 +283,26 @@ void getOptimalHeading()
 
 void moveToGoal()
 {
-  if(goForward)
+  Serial.print("Enable: ");
+  Serial.println(enable);
+  if(enable == 0)
+  {
+    idle();
+  }
+  else if(goForward)
   {
     forward();
   }
   
   else if(goLeft)
   {
+    go();
     turnL();
   }
   
   else if(goRight)
   {
+    go();
     turnR();
   }
 }
@@ -351,11 +383,11 @@ void idle()
   digitalWrite(TURN_R, LOW);
   digitalWrite(TURN_PWR, LOW);
   digitalWrite(BRAKE_DWN, LOW);
-  digitalWrite(BRAKE_UP, HIGH);
-  digitalWrite(BRAKE_PWR, HIGH);
+  digitalWrite(BRAKE_UP, LOW);
+  digitalWrite(BRAKE_PWR, LOW);
   digitalWrite(REV_ON, LOW);
-  digitalWrite(REV_OFF, HIGH);
-  digitalWrite(REV_PWR, HIGH);
+  digitalWrite(REV_OFF, LOW);
+  digitalWrite(REV_PWR, LOW);
   Serial.println("Idle");
 }
 
@@ -374,6 +406,18 @@ void brake()
   Serial.println("Braking");
 }
 
+void go()
+{
+  Serial.println("Power to back wheels.");
+  analogWrite(POWER, 100);
+  digitalWrite(BRAKE_DWN, LOW);
+  digitalWrite(BRAKE_UP, HIGH);
+  digitalWrite(BRAKE_PWR, HIGH);
+  digitalWrite(REV_ON, LOW);
+  digitalWrite(REV_OFF, HIGH);
+  digitalWrite(REV_PWR, HIGH);
+}
+
 void forward()
 {
   Serial.println("Going forward.");
@@ -388,16 +432,10 @@ void forward()
   }
   
   else{
-    analogWrite(POWER, 100);
-    digitalWrite(TURN_L, LOW);
+    go();
     digitalWrite(TURN_R, LOW);
+    digitalWrite(TURN_L, LOW);
     digitalWrite(TURN_PWR, LOW);
-    digitalWrite(BRAKE_DWN, LOW);
-    digitalWrite(BRAKE_UP, HIGH);
-    digitalWrite(BRAKE_PWR, HIGH);
-    digitalWrite(REV_ON, LOW);
-    digitalWrite(REV_OFF, HIGH);
-    digitalWrite(REV_PWR, HIGH);
   }
 }
 
@@ -419,56 +457,28 @@ void reverse()
 
 void turnL()
 {
-  Serial.println("Turn count: ");
-  Serial.println(turnCount);
-  analogWrite(POWER, 100);
-  if(turnCount > -11)
+  if(turnCount > -3 && autoNav)
   {
-    Serial.println("Turning left.");
-    digitalWrite(TURN_L, HIGH);
-    digitalWrite(TURN_R, LOW);
-    digitalWrite(TURN_PWR, HIGH);
     turnCount--;
   }
-  else{
-    Serial.println("Turn count too low, staying forward.");
-    digitalWrite(TURN_L, LOW);
-    digitalWrite(TURN_R, LOW);
-    digitalWrite(TURN_PWR, LOW);
-  }
-  digitalWrite(BRAKE_DWN, LOW);
-  digitalWrite(BRAKE_UP, HIGH);
-  digitalWrite(BRAKE_PWR, HIGH);
-  digitalWrite(REV_ON, LOW);
-  digitalWrite(REV_OFF, HIGH);
-  digitalWrite(REV_PWR, HIGH);
+  
+  Serial.println("Turning left.");
+  digitalWrite(TURN_L, HIGH);
+  digitalWrite(TURN_R, LOW);
+  digitalWrite(TURN_PWR, HIGH);
 }
 
 void turnR()
 {
-  Serial.println("Turn count: ");
-  Serial.println(turnCount);
   analogWrite(POWER, 100);
-  if(turnCount < 11)
+  if(turnCount < 3 && autoNav)
   {
-    Serial.println("Turning right.");
-    digitalWrite(TURN_L, LOW);
-    digitalWrite(TURN_R, HIGH);
-    digitalWrite(TURN_PWR, HIGH);
     turnCount++;
   }
-  else{
-    Serial.println("Turn count too high, staying forward.");
-    digitalWrite(TURN_L, LOW);
-    digitalWrite(TURN_R, LOW);
-    digitalWrite(TURN_PWR, LOW);
-  }
-  digitalWrite(BRAKE_DWN, LOW);
-  digitalWrite(BRAKE_UP, HIGH);
-  digitalWrite(BRAKE_PWR, HIGH);
-  digitalWrite(REV_ON, LOW);
-  digitalWrite(REV_OFF, HIGH);
-  digitalWrite(REV_PWR, HIGH);
+  Serial.println("Turning right.");
+  digitalWrite(TURN_L, LOW);
+  digitalWrite(TURN_R, HIGH);
+  digitalWrite(TURN_PWR, HIGH);
 }
 
 /*void detectCollisions()
@@ -544,6 +554,8 @@ void autoNavigate()
   {
     if(!visited[i])
     {
+      Serial.print("Going to waypoint ");
+      Serial.println(i+1);
       goalLat = waypoints[i][0];
       goalLong = waypoints[i][1];
       break;
@@ -559,6 +571,7 @@ void autoNavigate()
       if(!visited[i])
       {
         visited[i] = true;
+        Serial.println("Waypoint reached.");
         break;
       }
     }
